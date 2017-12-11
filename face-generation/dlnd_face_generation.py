@@ -281,7 +281,7 @@ tests.test_model_loss(model_loss)
 # ### 优化（Optimization）
 # 部署 `model_opt` 函数实现对 GANs 的优化。使用 [`tf.trainable_variables`](https://www.tensorflow.org/api_docs/python/tf/trainable_variables) 获取可训练的所有变量。通过变量空间名 `discriminator` 和 `generator` 来过滤变量。该函数应返回形如 (discriminator training operation, generator training operation) 的元组。
 
-# In[22]:
+# In[9]:
 
 def model_opt(d_loss, g_loss, learning_rate, beta1):
     """
@@ -297,9 +297,14 @@ def model_opt(d_loss, g_loss, learning_rate, beta1):
     d_vars = [var for var in t_vars if var.name.startswith('discriminator')]
     g_vars = [var for var in t_vars if var.name.startswith('generator')]
 
+    all_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    g_update_ops = [var for var in all_update_ops if var.name.startswith('generator')]
+    d_update_ops = [var for var in all_update_ops if var.name.startswith('discriminator')]
     # Optimize
-    d_train_opt = tf.train.AdamOptimizer(learning_rate, beta1=beta1).minimize(d_loss, var_list=d_vars)
-    g_train_opt = tf.train.AdamOptimizer(learning_rate, beta1=beta1).minimize(g_loss, var_list=g_vars)
+    with tf.control_dependencies(d_update_ops):
+        d_train_opt = tf.train.AdamOptimizer(learning_rate,beta1=beta1).minimize(d_loss, var_list=d_vars)
+    with tf.control_dependencies(g_update_ops):
+        g_train_opt = tf.train.AdamOptimizer(learning_rate,beta1=beta1).minimize(g_loss, var_list=g_vars)
 
     return d_train_opt, g_train_opt
 
@@ -353,7 +358,7 @@ def show_generator_output(sess, n_images, input_z, out_channel_dim, image_mode):
 # 
 # **注意**：在每个批次 (batch) 中运行 `show_generator_output` 函数会显著增加训练时间与该 notebook 的体积。推荐每 100 批次输出一次 `generator` 的输出。 
 
-# In[25]:
+# In[11]:
 
 def train(epoch_count, batch_size, z_dim, learning_rate, beta1, get_batches, data_shape, data_image_mode):
     """
@@ -372,14 +377,13 @@ def train(epoch_count, batch_size, z_dim, learning_rate, beta1, get_batches, dat
 
     d_loss, g_loss = model_loss(input_real, input_z, data_shape[3])
     d_opt, g_opt = model_opt(d_loss, g_loss, learning_rate, beta1)
-        
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         for e in range(epochs):
             steps = 0
             for batch_images in get_batches(batch_size):
                 steps += 1
-
+                batch_images *= 2
                 # Sample random noise for G
                 batch_z = np.random.uniform(-1, 1, size=(batch_size, z_dim))
 
@@ -403,9 +407,9 @@ def train(epoch_count, batch_size, z_dim, learning_rate, beta1, get_batches, dat
 # ### MNIST
 # 在 MNIST 上测试你的 GANs 模型。经过 2 次迭代，GANs 应该能够生成类似手写数字的图像。确保生成器 (generator) 低于辨别器 (discriminator) 的损失，或接近 0。
 
-# In[26]:
+# In[12]:
 
-batch_size = 64
+batch_size = 32
 z_dim = 128
 learning_rate = 0.0002
 beta1 = 0.5
@@ -425,11 +429,11 @@ with tf.Graph().as_default():
 # ### CelebA
 # 在 CelebA 上运行你的 GANs 模型。在一般的GPU上运行每次迭代大约需要 20 分钟。你可以运行整个迭代，或者当 GANs 开始产生真实人脸图像时停止它。
 
-# In[29]:
+# In[13]:
 
-batch_size = 64
+batch_size = 32
 z_dim = 128
-learning_rate = 0.0005
+learning_rate = 0.0002
 beta1 = 0.5
 
 
